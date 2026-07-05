@@ -162,6 +162,9 @@ const sWin=()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.15,0.1
 // ═══════ 게임 로직 ═══════
 function resetMatch(){
   scoreB=0; scoreT=0; rally=0; over=false;
+  rematchMe=false; rematchOpp=false;
+  const rb=document.getElementById('b-rematch');
+  if(rb){ rb.disabled=false; if(mode==='online') rb.textContent='재대결 신청'; }
   padB={x:W/2,tx:W/2}; padT={x:W/2,tx:W/2};
   serve('B');
 }
@@ -214,6 +217,7 @@ function endMatch(){
   }
   if(meWin||mode==='local') sWin();
   document.getElementById('b-rematch').textContent = mode==='online' ? '재대결 신청' : '다시 한 판';
+  document.getElementById('b-rematch').disabled=false;
   document.getElementById('overlay').classList.add('on');
 }
 
@@ -374,7 +378,8 @@ function wireNet(){
   net.on('score', d=>{ scoreB=d.t; scoreT=d.b;           // 상대 기준 반전
     if(scoreB>=WIN||scoreT>=WIN){ endMatch(); } else serve(Math.random()<0.5?'B':'T'); });
   net.on('rematch', ()=>{ rematchOpp=true; toast('상대가 재대결을 원합니다!');
-    if(rematchMe){ resetMatch(); document.getElementById('overlay').classList.remove('on'); } });
+    if(rematchMe){ resetMatch(); document.getElementById('overlay').classList.remove('on'); }
+    else { const b=document.getElementById('b-rematch'); b.textContent='✅ 재대결 수락!'; } });
   net.on('bye', ()=>toast('상대방이 나갔습니다'));
   net.on('_p', n=>{ if(n>=2 && mode!=='online'){ startOnline(); } else if(n<2 && mode==='online' && !over) toast('상대방 연결 끊김'); });
 }
@@ -424,7 +429,11 @@ $('b-share').onclick=async()=>{
 $('b-rematch').onclick=()=>{
   if(mode==='online'){ rematchMe=true; net.send('rematch',{});
     if(rematchOpp){ resetMatch(); $('overlay').classList.remove('on'); }
-    else $('ov-sub').textContent='상대의 수락을 기다리는 중...';
+    else {
+      $('ov-sub').textContent='상대의 수락을 기다리는 중...';
+      $('b-rematch').textContent='⏳ 수락 대기 중...';
+      $('b-rematch').disabled=true;
+    }
   } else { resetMatch(); $('overlay').classList.remove('on'); }
 };
 $('b-exit').onclick=()=>{
