@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>핑퐁 클래식</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#08080c">
+<meta property="og:title" content="핑퐁 클래식 🏓">
+<meta property="og:description" content="원조 라켓 대전! AI전·한 폰 맞대결·온라인 대전.">
+<style>
+  :root{ --bg:#08080c; --ink:#eef0f4; --dim:#7d8494; --neon:#7df9ff; --pk:#ff7da0; }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI", system-ui, sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+    overscroll-behavior:none; touch-action:manipulation;
+  }
+  .screen{width:100%; max-width:480px; padding:24px 20px calc(24px + env(safe-area-inset-bottom)); display:none; flex-direction:column; align-items:center}
+  .screen.on{display:flex}
+  h1{font-size:40px; margin:44px 0 6px; letter-spacing:.04em}
+  h1 .go{color:var(--neon)}
+  .sub{color:var(--dim); font-size:13px; margin-bottom:38px; letter-spacing:.2em; text-transform:uppercase}
+  .btn{
+    width:100%; max-width:320px; padding:16px; margin:7px 0; font-size:17px; font-weight:700;
+    background:#14141c; color:var(--ink); border:1px solid #2c2c3a; border-radius:14px; cursor:pointer; text-align:center;
+  }
+  .btn:active{background:#1e1e2a}
+  .btn.primary{background:var(--neon); color:#04252a; border-color:#b9fcff}
+  .btn:disabled{opacity:.4}
+  input.code{
+    width:100%; max-width:320px; padding:14px; margin:6px 0; font-size:24px; text-align:center;
+    letter-spacing:.4em; text-transform:uppercase; font-weight:700;
+    background:#0e0e14; color:var(--ink); border:1px solid #2c2c3a; border-radius:12px; outline:none;
+  }
+  .note{color:var(--dim); font-size:13px; line-height:1.8; text-align:center; margin-top:10px}
+  #gamewrap{position:relative; width:100%; max-width:480px}
+  canvas{display:block; width:100%; touch-action:none}
+  #overlay{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(4,4,8,.8); text-align:center; padding:20px; z-index:5;
+  }
+  #overlay.on{display:flex}
+  #ov-title{font-size:38px; font-weight:900; margin-bottom:6px}
+  #ov-sub{color:var(--dim); margin-bottom:22px; font-size:14px}
+  #toast{
+    position:fixed; bottom:calc(28px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+    background:#000d; color:var(--ink); padding:10px 18px; border-radius:20px; font-size:14px;
+    opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; z-index:50;
+  }
+  #toast.on{opacity:1}
+  .spin{width:34px;height:34px;border:3px solid #2c2c3a;border-top-color:var(--neon);border-radius:50%;animation:sp 1s linear infinite;margin:16px auto}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion: reduce){ .spin{animation-duration:2s} }
+  footer{margin:10px 0 calc(18px + env(safe-area-inset-bottom)); font-size:12px}
+  footer a{color:#3d4452; text-decoration:none}
+</style>
+</head>
+<body>
+
+<div id="scr-menu" class="screen on">
+  <h1>핑퐁 <span class="go">클래식</span></h1>
+  <div class="sub">Racket duel · 먼저 11점!</div>
+  <button class="btn primary" id="b-local">📱 한 폰으로 대결</button>
+  <button class="btn" id="b-ai">🤖 혼자 연습 (AI)</button>
+  <button class="btn" id="b-online">🌐 온라인 대전</button>
+  <div class="note">폰을 눕혀놓고 <b style="color:var(--pk)">아래쪽</b>과 <b style="color:var(--neon)">위쪽</b>을 각자 터치!<br>
+  라켓 끝으로 치면 공이 꺾입니다. 랠리가 길수록 빨라져요.</div>
+</div>
+
+<div id="scr-online" class="screen">
+  <h1 style="font-size:30px">온라인 대전</h1>
+  <div class="sub">방 코드로 연결</div>
+  <button class="btn primary" id="b-create">방 만들기</button>
+  <div class="note" style="margin:14px 0">— 또는 —</div>
+  <input class="code" id="in-code" maxlength="4" placeholder="CODE" autocomplete="off">
+  <button class="btn" id="b-join">코드로 입장</button>
+  <button class="btn" id="b-back1" style="background:transparent;border-color:#22222e;color:var(--dim)">← 메뉴로</button>
+  <div class="note" id="online-note"></div>
+</div>
+
+<div id="scr-wait" class="screen">
+  <h1 style="font-size:30px">대기 중</h1>
+  <div class="sub">친구를 기다리는 중...</div>
+  <div style="font-size:52px; font-weight:900; letter-spacing:.35em; color:var(--neon); margin:10px 0" id="wait-code"></div>
+  <div class="spin"></div>
+  <button class="btn primary" id="b-share">📤 친구에게 초대 링크 보내기</button>
+  <button class="btn" id="b-back2" style="background:transparent;border-color:#22222e;color:var(--dim)">← 취소</button>
+</div>
+
+<div id="scr-game" class="screen" style="padding:0">
+  <div id="gamewrap">
+    <canvas id="cv"></canvas>
+    <div id="overlay">
+      <div id="ov-title"></div>
+      <div id="ov-sub"></div>
+      <button class="btn primary" id="b-rematch" style="max-width:260px">다시 한 판</button>
+      <button class="btn" id="b-exit" style="max-width:260px">메뉴로 나가기</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<footer><a href="https://kentc.github.io/arcade/">← 아케이드 허브</a></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+'use strict';
+/* ═══════════ 핑퐁 클래식 — 실시간 대전 (이벤트 동기화 넷코드) ═══════════
+   넷코드 설계:
+   - 공은 결정론적: 패들 접촉 순간에만 상태 브로드캐스트('bounce')
+   - 내 패들·내 뒷벽 판정은 내 화면이 권위 (판정 소유권 분리)
+   - 상대 패들은 15Hz 위치 스트림 + 보간
+════════════════════════════════════════════════════════════════ */
+const SUPA_URL = '';   // 키를 넣으면 온라인 활성화
+const SUPA_KEY = '';
+
+const W=400, H=640;
+const COURT={x:10, y:64, w:380, h:512};
+const PW=70, PH=10, BR=6, WIN=11;
+const cv=document.getElementById('cv'), g=cv.getContext('2d');
+const DPR=Math.min(2, window.devicePixelRatio||1);
+cv.width=W*DPR; cv.height=H*DPR; g.scale(DPR,DPR);
+
+// ═══════ 상태 ═══════
+let mode=null;              // 'ai' | 'local' | 'online'
+let padB={x:W/2, tx:W/2};   // 아래(나)
+let padT={x:W/2, tx:W/2};   // 위(상대) — online은 원격 보간
+let padTremote={x:W/2, t:0};
+let ball={x:W/2, y:H/2, vx:0, vy:0, sp:0};
+let scoreB=0, scoreT=0, rally=0;
+let serveTimer=0, serveTo='B', playing=false, over=false;
+let net=null, roomCode='', myRole='';   // host=아래(B) 기준 세계좌표, guest는 뷰 뒤집기
+let viewFlip=false;
+let rematchMe=false, rematchOpp=false;
+let padSendT=0;
+
+const yB = COURT.y+COURT.h-24;   // 아래 패들 y
+const yT = COURT.y+14;           // 위 패들 y
+
+// ═══════ 사운드 (합성 블립) ═══════
+let AC=null;
+function ensureAudio(){
+  if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)();
+  if(AC.state==='suspended') AC.resume();
+}
+function blip(f,d,v){
+  if(!AC) return;
+  const t=AC.currentTime,o=AC.createOscillator(),ga=AC.createGain();
+  o.type='square'; o.frequency.value=f;
+  ga.gain.setValueAtTime(v,t); ga.gain.exponentialRampToValueAtTime(0.001,t+d);
+  o.connect(ga).connect(AC.destination); o.start(t); o.stop(t+d+0.02);
+}
+const sPad=()=>blip(587,0.06,0.15);
+const sWall=()=>blip(392,0.05,0.12);
+const sScore=()=>blip(180,0.4,0.2);
+const sWin=()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.15,0.15),i*110));};
+
+// ═══════ 게임 로직 ═══════
+function resetMatch(){
+  scoreB=0; scoreT=0; rally=0; over=false;
+  padB={x:W/2,tx:W/2}; padT={x:W/2,tx:W/2};
+  serve('B');
+}
+function serve(to){
+  serveTo=to; serveTimer=50; playing=false;
+  ball.x=W/2; ball.y=H/2; ball.vx=0; ball.vy=0; ball.sp=4.2; rally=0;
+}
+function launch(){
+  const ang=(Math.random()*0.6-0.3);   // ±17도
+  const dir = serveTo==='B' ? 1 : -1;
+  ball.vx=Math.sin(ang)*ball.sp;
+  ball.vy=Math.cos(ang)*ball.sp*dir;
+  playing=true;
+}
+function paddleHit(pad, py, isBottom){
+  // 라켓 위치별 반사각 (끝으로 칠수록 꺾임) — 클래식 규칙
+  const rel=Math.max(-1, Math.min(1, (ball.x-pad.x)/(PW/2)));
+  ball.sp=Math.min(9.5, ball.sp+0.3); rally++;
+  const ang=rel*1.05;   // 최대 ±60도
+  ball.vx=Math.sin(ang)*ball.sp;
+  ball.vy=(isBottom?-1:1)*Math.cos(ang)*ball.sp;
+  ball.y=py+(isBottom?-BR-PH/2-1:BR+PH/2+1);
+  sPad();
+  // 온라인: 내 쪽 판정은 내가 권위 → 결과 브로드캐스트
+  if(mode==='online' && net && isBottom){
+    net.send('bounce',{x:+ball.x.toFixed(1),y:+ball.y.toFixed(1),vx:+ball.vx.toFixed(3),vy:+ball.vy.toFixed(3),sp:+ball.sp.toFixed(2)});
+  }
+}
+function point(winner){
+  playing=false; sScore();
+  if(winner==='B') scoreB++; else scoreT++;
+  if(mode==='online' && net && winner==='T'){
+    // 내 뒷벽 통과 = 내 화면이 권위로 판정 → 통보
+    net.send('score',{b:scoreB, t:scoreT});
+  }
+  if(scoreB>=WIN || scoreT>=WIN){ endMatch(); return; }
+  serve(winner==='B' ? 'T' : 'B');   // 진 쪽이 서브 받기(이긴 쪽 반대로 발사)
+}
+function endMatch(){
+  over=true; playing=false;
+  const meWin = scoreB>scoreT;
+  const t=document.getElementById('ov-title'), s=document.getElementById('ov-sub');
+  if(mode==='local'){
+    t.textContent = meWin ? '🏓 아래쪽 승리!' : '🏓 위쪽 승리!';
+    s.textContent = scoreB+' : '+scoreT;
+  } else {
+    t.textContent = meWin ? '🏆 승리!' : '😢 패배...';
+    t.style.color = meWin ? '#7df9ff' : '#7d8494';
+    s.textContent = '나 '+scoreB+' : '+scoreT+' 상대';
+  }
+  if(meWin||mode==='local') sWin();
+  document.getElementById('b-rematch').textContent = mode==='online' ? '재대결 신청' : '다시 한 판';
+  document.getElementById('overlay').classList.add('on');
+}
+
+function step(){
+  if(over) return;
+  // 패들 이동 (목표 따라가기, 속도 제한 = 공정성)
+  const cap=15;
+  padB.x += Math.max(-cap, Math.min(cap, padB.tx-padB.x));
+  if(mode==='ai'){
+    // AI: 공 예측 추적 + 반응 한계
+    const target = (playing && ball.vy<0) ? ball.x : W/2;
+    const sp = 3.4 + Math.min(2.5, (scoreT-scoreB)*-0.3 + rally*0.06);
+    padT.x += Math.max(-sp, Math.min(sp, target-padT.x));
+  } else if(mode==='local'){
+    padT.x += Math.max(-cap, Math.min(cap, padT.tx-padT.x));
+  } else if(mode==='online'){
+    // 원격 패들 보간 (부드럽게)
+    padT.x += (padTremote.x-padT.x)*0.35;
+  }
+  padB.x=Math.max(COURT.x+PW/2, Math.min(COURT.x+COURT.w-PW/2, padB.x));
+  padT.x=Math.max(COURT.x+PW/2, Math.min(COURT.x+COURT.w-PW/2, padT.x));
+
+  if(serveTimer>0){ serveTimer--; if(serveTimer===0) launch(); return; }
+  if(!playing) return;
+
+  // 공 이동 (서브스텝 — 고속 터널링 방지)
+  const sub=2;
+  for(let k=0;k<sub;k++){
+    ball.x+=ball.vx/sub; ball.y+=ball.vy/sub;
+    if(ball.x<COURT.x+BR){ ball.x=COURT.x+BR; ball.vx=Math.abs(ball.vx); sWall(); }
+    if(ball.x>COURT.x+COURT.w-BR){ ball.x=COURT.x+COURT.w-BR; ball.vx=-Math.abs(ball.vx); sWall(); }
+    // 아래 패들 (내 판정)
+    if(ball.vy>0 && ball.y+BR>=yB-PH/2 && ball.y+BR<=yB+PH/2+8 && Math.abs(ball.x-padB.x)<=PW/2+BR)
+      paddleHit(padB, yB, true);
+    // 위 패들 (AI/로컬은 여기서, 온라인은 상대 브로드캐스트가 권위지만 로컬 예측도 수행)
+    if(ball.vy<0 && ball.y-BR<=yT+PH/2 && ball.y-BR>=yT-PH/2-8 && Math.abs(ball.x-padT.x)<=PW/2+BR){
+      if(mode!=='online') paddleHit(padT, yT, false);
+      else { // 예측 반사 (권위 메시지 오면 스냅)
+        const rel=Math.max(-1,Math.min(1,(ball.x-padT.x)/(PW/2)));
+        ball.sp=Math.min(9.5, ball.sp+0.3);
+        ball.vx=Math.sin(rel*1.05)*ball.sp; ball.vy=Math.cos(rel*1.05)*ball.sp;
+        ball.y=yT+PH/2+BR+1; sPad();
+      }
+    }
+    // 득점 (내 뒷벽=내 판정 / 상대 뒷벽은 온라인에선 상대 판정)
+    if(ball.y>COURT.y+COURT.h+20){ point('T'); return; }
+    if(ball.y<COURT.y-20){ if(mode!=='online') point('B'); return; }
+  }
+  // 온라인: 내 패들 위치 15Hz 송신
+  if(mode==='online' && net){
+    padSendT++;
+    if(padSendT>=4){ padSendT=0; net.send('pad',{x:+padB.x.toFixed(1)}); }
+  }
+}
+
+// ═══════ 렌더 ═══════
+const fx = x => viewFlip ? W-x : x;
+const fy = y => viewFlip ? H-y : y;
+function draw(){
+  g.fillStyle='#08080c'; g.fillRect(0,0,W,H);
+  // 코트
+  g.strokeStyle='#232332'; g.lineWidth=4;
+  g.strokeRect(COURT.x,COURT.y,COURT.w,COURT.h);
+  // 센터라인 (클래식 점선)
+  g.fillStyle='#2e2e40';
+  for(let x=COURT.x+8; x<COURT.x+COURT.w-8; x+=22) g.fillRect(x, H/2-2, 12, 4);
+  // 점수 (센터라인 위아래, 클래식 스타일 큰 숫자)
+  g.font='bold 44px Consolas, monospace'; g.textAlign='center';
+  g.fillStyle='rgba(125,249,255,0.5)';
+  g.save();
+  if(mode==='local'){ g.translate(60, H/2-38); g.rotate(Math.PI); g.fillText(String(scoreT),0,-14); g.restore(); }
+  else { g.restore(); g.fillStyle='rgba(125,249,255,0.5)'; g.fillText(String(viewFlip?scoreB:scoreT), 60, H/2-22); }
+  g.fillStyle='rgba(255,125,160,0.5)';
+  g.fillText(String(mode==='local'?scoreB:(viewFlip?scoreT:scoreB)), 60, H/2+52);
+  // 패들
+  g.fillStyle='#7df9ff';
+  g.fillRect(fx(padT.x)-PW/2, fy(yT)-PH/2, PW, PH);
+  g.fillStyle='#ff7da0';
+  g.fillRect(fx(padB.x)-PW/2, fy(yB)-PH/2, PW, PH);
+  // 공
+  if(playing||serveTimer>0){
+    g.fillStyle='#fff';
+    g.fillRect(fx(ball.x)-BR, fy(ball.y)-BR, BR*2, BR*2);   // 사각 공 = 클래식 감성
+  }
+  // 서브 카운트다운
+  if(serveTimer>0 && !over){
+    g.fillStyle='#eef0f4'; g.font='bold 20px sans-serif'; g.textAlign='center';
+    g.fillText(Math.ceil(serveTimer/17), W/2, H/2-60);
+  }
+  // 상단 정보
+  g.font='12px sans-serif'; g.fillStyle='#7d8494'; g.textAlign='left';
+  const label = mode==='ai'?'AI 대전':(mode==='local'?'한 폰 대결':'온라인 · 방 '+roomCode);
+  g.fillText('🏓 '+label+' · 먼저 '+WIN+'점 · 랠리 '+rally, 14, 40);
+  if(mode==='online'){
+    g.textAlign='right';
+    g.fillText(navigator.onLine?'●':'○', W-14, 40);
+  }
+}
+
+// ═══════ 입력 (멀티터치) ═══════
+const ptrs={};   // pointerId → 'B'|'T'
+function ctlX(e){
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*W/r.width;
+  return viewFlip ? W-x : x;
+}
+cv.addEventListener('pointerdown', e=>{
+  ensureAudio();
+  const r=cv.getBoundingClientRect();
+  const y=(e.clientY-r.top)*H/r.height;
+  let zone='B';
+  if(mode==='local') zone = y<H/2 ? 'T' : 'B';
+  ptrs[e.pointerId]=zone;
+  const x=ctlX(e);
+  if(zone==='B') padB.tx=x; else padT.tx=x;
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e=>{
+  const zone=ptrs[e.pointerId]; if(!zone) return;
+  const x=ctlX(e);
+  if(zone==='B') padB.tx=x; else padT.tx=x;
+});
+const drop=e=>{ delete ptrs[e.pointerId]; };
+cv.addEventListener('pointerup',drop);
+cv.addEventListener('pointercancel',drop);
+addEventListener('keydown',e=>{   // 데스크톱: ←→
+  if(e.key==='ArrowLeft') padB.tx=padB.x-46;
+  if(e.key==='ArrowRight') padB.tx=padB.x+46;
+});
+
+// ═══════ 실시간 넷 모듈 (RTNet — TurnNet의 실시간판, 재사용용) ═══════
+class RTNet{
+  constructor(url,key){ this.sb=window.supabase.createClient(url,key); this.ch=null; this.h={}; }
+  on(t,f){ this.h[t]=f; }
+  async open(code, role){
+    this.ch=this.sb.channel('pong-'+code,{config:{broadcast:{self:false},presence:{key:role}}});
+    this.ch.on('broadcast',{event:'m'},({payload})=>{const f=this.h[payload.t]; if(f) f(payload.d);});
+    this.ch.on('presence',{event:'sync'},()=>{const n=Object.keys(this.ch.presenceState()).length; if(this.h._p) this.h._p(n);});
+    return new Promise((res,rej)=>{
+      const to=setTimeout(()=>rej(new Error('연결 시간 초과')),10000);
+      this.ch.subscribe(async s=>{
+        if(s==='SUBSCRIBED'){ clearTimeout(to); await this.ch.track({role}); res(); }
+        else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT'){ clearTimeout(to); rej(new Error(s)); }
+      });
+    });
+  }
+  send(t,d){ if(this.ch) this.ch.send({type:'broadcast',event:'m',payload:{t,d}}); }
+  close(){ if(this.ch){ this.sb.removeChannel(this.ch); this.ch=null; } }
+}
+const CODE_CHARS='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const makeCode=()=>Array.from({length:4},()=>CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)]).join('');
+
+function wireNet(){
+  net.on('pad', d=>{ padTremote.x = W-d.x; });          // 상대 좌표는 미러
+  net.on('bounce', d=>{                                  // 상대 패들 권위 반사
+    ball.x=W-d.x; ball.y=H-d.y; ball.vx=-d.vx; ball.vy=-d.vy; ball.sp=d.sp;
+  });
+  net.on('score', d=>{ scoreB=d.t; scoreT=d.b;           // 상대 기준 반전
+    if(scoreB>=WIN||scoreT>=WIN){ endMatch(); } else serve(Math.random()<0.5?'B':'T'); });
+  net.on('rematch', ()=>{ rematchOpp=true; toast('상대가 재대결을 원합니다!');
+    if(rematchMe){ resetMatch(); document.getElementById('overlay').classList.remove('on'); } });
+  net.on('bye', ()=>toast('상대방이 나갔습니다'));
+  net.on('_p', n=>{ if(n>=2 && mode!=='online'){ startOnline(); } else if(n<2 && mode==='online' && !over) toast('상대방 연결 끊김'); });
+}
+function startOnline(){
+  mode='online'; viewFlip=(myRole==='guest');
+  rematchMe=rematchOpp=false;
+  resetMatch(); show('scr-game');
+  toast('대국 시작! ' + (myRole==='host'?'첫 서브: 나':'첫 서브: 상대'));
+}
+
+// ═══════ UI ═══════
+const $=id=>document.getElementById(id);
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); }
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._x); t._x=setTimeout(()=>t.classList.remove('on'),2500); }
+
+$('b-ai').onclick=()=>{ ensureAudio(); mode='ai'; viewFlip=false; resetMatch(); show('scr-game'); };
+$('b-local').onclick=()=>{ ensureAudio(); mode='local'; viewFlip=false; resetMatch(); show('scr-game'); };
+$('b-online').onclick=()=>{
+  ensureAudio();
+  if(!SUPA_URL){
+    $('online-note').innerHTML='⚠️ 온라인 서버 설정 전입니다.<br>AI전·한 폰 대결은 바로 가능해요!';
+    $('b-create').disabled=true; $('b-join').disabled=true;
+  } else { $('online-note').textContent=''; $('b-create').disabled=false; $('b-join').disabled=false; }
+  show('scr-online');
+};
+$('b-create').onclick=async()=>{
+  roomCode=makeCode(); myRole='host';
+  net=new RTNet(SUPA_URL,SUPA_KEY); wireNet();
+  try{ await net.open(roomCode,'host'); }catch(e){ toast('연결 실패: '+e.message); return; }
+  $('wait-code').textContent=roomCode; show('scr-wait');
+};
+$('b-join').onclick=async()=>{
+  roomCode=$('in-code').value.toUpperCase().trim();
+  if(roomCode.length!==4){ toast('4자리 코드를 입력하세요'); return; }
+  myRole='guest';
+  net=new RTNet(SUPA_URL,SUPA_KEY); wireNet();
+  try{ await net.open(roomCode,'guest'); }catch(e){ toast('연결 실패: '+e.message); return; }
+  toast('입장!');
+};
+$('b-back1').onclick=()=>show('scr-menu');
+$('b-back2').onclick=()=>{ if(net)net.close(); net=null; show('scr-menu'); };
+$('b-share').onclick=async()=>{
+  const url=location.origin+location.pathname+'?room='+roomCode;
+  if(navigator.share){ try{ await navigator.share({title:'핑퐁 클래식',text:'핑퐁 한 판 붙자! 🏓',url}); }catch(e){} }
+  else { try{ await navigator.clipboard.writeText(url); toast('링크 복사 완료!'); }catch(e){ toast(url); } }
+};
+$('b-rematch').onclick=()=>{
+  if(mode==='online'){ rematchMe=true; net.send('rematch',{});
+    if(rematchOpp){ resetMatch(); $('overlay').classList.remove('on'); }
+    else $('ov-sub').textContent='상대의 수락을 기다리는 중...';
+  } else { resetMatch(); $('overlay').classList.remove('on'); }
+};
+$('b-exit').onclick=()=>{
+  if(net){ net.send('bye',{}); net.close(); net=null; }
+  $('overlay').classList.remove('on'); show('scr-menu');
+};
+addEventListener('load',()=>{
+  const c=new URLSearchParams(location.search).get('room');
+  if(c && SUPA_URL){ show('scr-online'); $('in-code').value=c.toUpperCase(); setTimeout(()=>$('b-join').click(),400); }
+});
+
+// 자가 테스트 API
+window.__pong={ get st(){ return {ball:{x:+ball.x.toFixed(1),y:+ball.y.toFixed(1),sp:ball.sp}, scoreB, scoreT, rally, playing, over, mode}; },
+  setPad(x){ padB.tx=x; }, setTop(x){ padT.tx=x; } };
+
+// ═══════ 루프 ═══════
+let last=performance.now(), acc=0;
+function loop(now){
+  acc+=Math.min(now-last,100); last=now;
+  while(acc>=1000/60){ step(); acc-=1000/60; }
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
