@@ -168,14 +168,18 @@ function resetMatch(){
   const rb=document.getElementById('b-rematch');
   if(rb){ rb.disabled=false; if(mode==='online') rb.textContent='재대결 신청'; }
   padB={x:W/2,tx:W/2}; padT={x:W/2,tx:W/2};
-  serve('B');
+  serve(mode==='online' && myRole==='guest' ? 'T' : 'B');   // 호스트 쪽으로 첫 서브 (양쪽 일치)
 }
 function serve(to){
   serveTo=to; serveTimer=50; playing=false;
   ball.x=W/2; ball.y=H/2; ball.vx=0; ball.vy=0; ball.sp=4.2; rally=0;
 }
 function launch(){
-  const ang=(Math.random()*0.6-0.3);   // ±17도
+  let ang=(Math.random()*0.6-0.3);   // ±17도
+  if(mode==='online'){               // 온라인: 총 득점수 기반 결정론 각도 (양쪽 동일, 게스트는 좌표계 미러 보정)
+    ang=(((scoreB+scoreT)*0.6180339)%1)*0.6-0.3;
+    if(myRole==='guest') ang=-ang;
+  }
   const dir = serveTo==='B' ? 1 : -1;
   ball.vx=Math.sin(ang)*ball.sp;
   ball.vy=Math.cos(ang)*ball.sp*dir;
@@ -378,7 +382,7 @@ function wireNet(){
     ball.x=W-d.x; ball.y=H-d.y; ball.vx=-d.vx; ball.vy=-d.vy; ball.sp=d.sp;
   });
   net.on('score', d=>{ scoreB=d.t; scoreT=d.b;           // 상대 기준 반전
-    if(scoreB>=WIN||scoreT>=WIN){ endMatch(); } else serve(Math.random()<0.5?'B':'T'); });
+    if(scoreB>=WIN||scoreT>=WIN){ endMatch(); } else serve('T'); });   // 수신자=득점자, 진 쪽(내 기준 T)이 서브 받음
   net.on('rematch', ()=>{ rematchOpp=true; toast('상대가 재대결을 원합니다!');
     if(rematchMe){ resetMatch(); document.getElementById('overlay').classList.remove('on'); }
     else { const b=document.getElementById('b-rematch'); b.textContent='✅ 재대결 수락!'; } });
@@ -386,7 +390,7 @@ function wireNet(){
   net.on('_p', n=>{ if(n>=2 && mode!=='online'){ startOnline(); } else if(n<2 && mode==='online' && !over) toast('상대방 연결 끊김'); });
 }
 function startOnline(){
-  mode='online'; viewFlip=(myRole==='guest');
+  mode='online'; viewFlip=false;   // 각 클라이언트 로컬좌표가 이미 '내 패들=아래' — 뒤집기 하면 이중반전
   rematchMe=rematchOpp=false;
   resetMatch(); show('scr-game');
   toast('대국 시작! ' + (myRole==='host'?'첫 서브: 나':'첫 서브: 상대'));
