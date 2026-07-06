@@ -57,6 +57,7 @@
   @media (prefers-reduced-motion: reduce){ .spin{animation-duration:2s} }
   footer{margin:10px 0 calc(18px + env(safe-area-inset-bottom)); font-size:12px}
   footer a{color:#3d4452; text-decoration:none}
+#b-menu{position:absolute; top:10px; left:10px; z-index:5; padding:8px 12px; border-radius:10px; border:1px solid #3a3a48; background:rgba(22,22,30,.85); color:#dfe3ec; font-weight:700; font-size:13px; cursor:pointer}
 </style>
 </head>
 <body>
@@ -94,6 +95,7 @@
 <div id="scr-game" class="screen" style="padding:0">
   <div id="gamewrap">
     <canvas id="cv"></canvas>
+    <button id="b-menu">🏠 메뉴</button>
     <div id="overlay">
       <div id="ov-title"></div>
       <div id="ov-sub"></div>
@@ -438,6 +440,12 @@ $('b-rematch').onclick=()=>{
 };
 $('b-exit').onclick=()=>{
   if(net){ net.send('bye',{}); net.close(); net=null; }
+  $('overlay').classList.remove('on'); show('scr-menu');
+};
+$('b-menu').onclick=()=>{
+  if(mode==='online' && !over && !confirm('대전을 나가시겠습니까?')) return;
+  if(net){ net.send('bye',{}); net.close(); net=null; }
+  over=true; playing=false;
   $('overlay').classList.remove('on'); show('scr-menu');
 };
 addEventListener('load',()=>{
